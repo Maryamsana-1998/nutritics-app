@@ -45,6 +45,8 @@ Follow the dependency rule. It is enforced by project references and must not be
 
 ## 4. Test
 
+**Every issue must ship with unit tests for its feature. No unit tests, no pull request.** This applies to every issue, including UI-heavy ones: put the logic in Domain or Application (not in `.razor` code) so it can be unit tested, and test it there. Before step 5, confirm the diff contains new or changed tests under `tests/` that exercise the new behavior (`git diff --stat main -- tests`). If it does not, go back and write them. Only infrastructure-only issues (CI, Docker) are exempt; say so explicitly in the PR.
+
 1. Test projects live in `tests/` (`CafeKitchen.Domain.Tests`, `CafeKitchen.Application.Tests`, `CafeKitchen.IntegrationTests`). If the one you need does not exist yet, create it (xUnit) and add it to `CafeKitchen.sln`.
 2. Write tests for every acceptance criterion that is testable. Name scenarios in business language, e.g. `Recipe_with_undeclared_ingredient_three_levels_deep_is_not_confirmed`. Domain rules B1–B8 need tests, with nested recipes at least three levels deep.
 3. Run `dotnet build CafeKitchen.sln` and `dotnet test CafeKitchen.sln`. Fix failures; do not weaken or delete a test to get green.
@@ -67,7 +69,7 @@ gh pr create --base main --title "<issue title>" --body-file <file>
    - `Closes #<n>`
    - **Summary**: what changed, by layer
    - **Acceptance criteria**: the checklist with ticked / unticked items
-   - **Testing**: commands run and results, plus anything not tested
+   - **Testing**: the unit tests added (file and test names, mapped to the acceptance criteria they cover), commands run and results, plus anything not tested
    - **Notes**: decisions taken, migrations added, follow-ups
    - End with the PR attribution line from the session's instructions.
 4. Never merge the PR and never push to `main`. Hand the PR URL back to the user for review.
