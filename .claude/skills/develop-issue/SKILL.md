@@ -38,22 +38,42 @@ Follow the dependency rule. It is enforced by project references and must not be
 - Business rules go in Domain; use cases and repository interfaces in Application; EF Core, CsvHelper and migrations in Infrastructure; Blazor pages in Web. The Web layer never touches the `DbContext`.
 - Staff pages use `@rendermode InteractiveServer`. The public menu is static server rendering (no JavaScript required).
 - Schema change: add a migration with
-  `dotnet ef migrations add <Name> -p src/CafeKitchen.Infrastructure -o Persistence/Migrations`.
+  `dotnet ef migrations add <Name> -p src/CafeKitchen.Infrastructure -o Persistence/Migrations`, and update the schema docs (see section 4).
 - Match the surrounding code's style, naming and comment density. Do not refactor unrelated code.
 - Allergen wording: never say "safe" or "free from". "Not declared" is not "none".
 - Commit in small logical steps. Message style: imperative subject, short body, and end with the attribution line from the session's commit instructions.
 
 ## 4. Test
 
-**Every issue must ship with unit tests for its feature. No unit tests, no pull request.** This applies to every issue, including UI-heavy ones: put the logic in Domain or Application (not in `.razor` code) so it can be unit tested, and test it there. Before step 5, confirm the diff contains new or changed tests under `tests/` that exercise the new behavior (`git diff --stat main -- tests`). If it does not, go back and write them. Only infrastructure-only issues (CI, Docker) are exempt; say so explicitly in the PR.
+Three tiers of automated tests. All of them run in GitHub Actions on every pull request, so they must pass locally first.
 
-1. Test projects live in `tests/` (`CafeKitchen.Domain.Tests`, `CafeKitchen.Application.Tests`, `CafeKitchen.IntegrationTests`). If the one you need does not exist yet, create it (xUnit) and add it to `CafeKitchen.sln`.
-2. Write tests for every acceptance criterion that is testable. Name scenarios in business language, e.g. `Recipe_with_undeclared_ingredient_three_levels_deep_is_not_confirmed`. Domain rules B1–B8 need tests, with nested recipes at least three levels deep.
-3. Run `dotnet build CafeKitchen.sln` and `dotnet test CafeKitchen.sln`. Fix failures; do not weaken or delete a test to get green.
-4. For UI changes, also run the app and exercise the page:
-   - `dotnet run --project src/CafeKitchen.Web --launch-profile http` (background), then request the affected pages with `curl` and check status and key content. SQL Server Express must be running (`MSSQL$SQLEXPRESS`).
+| Tier | Project | What it covers |
+| --- | --- | --- |
+| Unit | `tests/CafeKitchen.Domain.Tests`, `tests/CafeKitchen.Application.Tests` | Domain rules and use cases, with fake repositories |
+| Integration | `tests/CafeKitchen.IntegrationTests` | EF Core mappings, migrations, repositories and imports against real SQL Server (Testcontainers) |
+| End to end | `tests/CafeKitchen.E2ETests` | The running web app driven through a browser (or HTTP) against a real database |
+
+**Requirements for every issue**
+- **Unit tests are mandatory.** No unit tests, no pull request. Put logic in Domain or Application (not in `.razor` code) so it can be unit tested. Before step 5, confirm `git diff --stat main -- tests` shows new or changed tests exercising the new behavior.
+- **Integration tests** are required whenever the issue touches persistence (entities, mappings, migrations, repositories, import).
+- **End-to-end tests** are required when the issue adds or changes a user-facing page or flow: add or extend a scenario covering the main path.
+- Only infrastructure-only issues (CI, Docker, docs) are exempt, and the PR must say so explicitly.
+- If a test project does not exist yet, create it (xUnit) and add it to `CafeKitchen.sln`. If the integration or end-to-end harness is not built yet (see the open issues for them), say so in the PR instead of inventing a throwaway harness.
+
+Steps
+1. Write tests for every acceptance criterion that is testable. Name scenarios in business language, e.g. `Recipe_with_undeclared_ingredient_three_levels_deep_is_not_confirmed`. Domain rules B1-B8 need tests, with nested recipes at least three levels deep.
+2. Run `dotnet build CafeKitchen.sln` and `dotnet test CafeKitchen.sln`. Fix failures; do not weaken or delete a test to get green.
+3. For UI changes, also run the app and look at the affected pages:
+   - `dotnet run --project src/CafeKitchen.Web --launch-profile http` (background), then request the pages with `curl` and check status and key content. SQL Server Express must be running (`MSSQL$SQLEXPRESS`).
    - Stop the app afterwards.
-5. Report honestly: if something could not be tested, say so in the PR; do not claim it was verified.
+4. Report honestly: if something could not be tested, say so in the PR; do not claim it was verified.
+
+**SQL schema stays current**
+Every issue that changes the database must update the schema definition in the same pull request, once it exists (see the schema issue):
+- add the EF migration, then regenerate `docs/schema.sql` with `dotnet ef migrations script --idempotent -p src/CafeKitchen.Infrastructure -o docs/schema.sql`
+- update the tables and ER diagram in `docs/03-database-schema.md`
+- CI fails if `docs/schema.sql` does not match the migrations
+List the schema changes under **Notes** in the PR, or state "no schema change".
 
 ## 5. Pull request
 
@@ -69,7 +89,8 @@ gh pr create --base main --title "<issue title>" --body-file <file>
    - `Closes #<n>`
    - **Summary**: what changed, by layer
    - **Acceptance criteria**: the checklist with ticked / unticked items
-   - **Testing**: the unit tests added (file and test names, mapped to the acceptance criteria they cover), commands run and results, plus anything not tested
+   - **Testing**: unit, integration and end-to-end tests added (file and test names, mapped to the acceptance criteria they cover), commands run and results, plus anything not tested
+   - **Schema**: schema changes and the updated `docs/schema.sql`, or "no schema change"
    - **Notes**: decisions taken, migrations added, follow-ups
    - End with the PR attribution line from the session's instructions.
 4. Never merge the PR and never push to `main`. Hand the PR URL back to the user for review.
@@ -77,4 +98,4 @@ gh pr create --base main --title "<issue title>" --body-file <file>
 
 ## Final message to the user
 
-Give: the PR URL, a two-line summary, test results, and anything left undone.
+Give: the PR URL, a two-line summary, test results per tier, and anything left undone.
