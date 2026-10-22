@@ -1,0 +1,86 @@
+@page "/ingredients"
+@rendermode InteractiveServer
+@using CafeKitchen.Application
+@using CafeKitchen.Application.Ingredients
+@using CafeKitchen.Domain.Common
+@using CafeKitchen.Domain.Ingredients
+@inject SearchIngredients Search
+@inject SaveIngredient Save
+
+<PageTitle>Ingredients</PageTitle>
+
+<h1>Ingredients</h1>
+
+<form @onsubmit="LoadAsync" class="row">
+    <label>Search <input @bind="term" /></label>
+    <button type="submit">Search</button>
+</form>
+
+<h2>Add ingredient</h2>
+<EditForm Model="draft" OnValidSubmit="AddAsync" FormName="add-ingredient" class="row">
+    <label>Name <input @bind="draft.Name" /></label>
+    <label>Supplier <input @bind="draft.Supplier" /></label>
+    <label>Pack size <input type="number" step="any" @bind="draft.PackSize" /></label>
+    <label>Unit
+        <select @bind="draft.Unit">
+            @foreach (var u in Enum.GetValues<Unit>()) { <option value="@u">@u</option> }
+        </select>
+    </label>
+    <label>Pack price <input type="number" step="any" @bind="draft.PackPrice" /></label>
+    @if (draft.Unit == Unit.Each)
+    {
+        <label>Weight per unit (g) <input type="number" step="any" @bind="draft.WeightPerUnitGrams" /></label>
+    }
+    <button type="submit">Add</button>
+</EditForm>
+@if (error is not null) { <p role="alert" class="error">@error</p> }
+
+@if (items is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <table>
+        <thead><tr><th>Name</th><th>Supplier</th><th>Pack</th><th>Price</th><th>Allergens</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var i in items)
+        {
+            <tr>
+                <td>@i.Name</td>
+                <td>@i.Supplier</td>
+                <td>@i.PackSize @i.Unit</td>
+                <td>@i.PackPrice.ToString("C")</td>
+                <td>@(i.AllergenStatus == AllergenStatus.NotDeclared ? "Not declared" : i.Allergens == Allergen.None ? "None declared" : i.Allergens.ToString())</td>
+                <td>@(i.IsDiscontinued ? "Discontinued" : "")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string? term;
+    private string? error;
+    private IReadOnlyList<Ingredient>? items;
+    private Ingredient draft = new();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() => items = await Search.ExecuteAsync(term);
+
+    private async Task AddAsync()
+    {
+        try
+        {
+            await Save.ExecuteAsync(draft);
+            draft = new();
+            error = null;
+            await LoadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            error = ex.Message;
+        }
+    }
+}

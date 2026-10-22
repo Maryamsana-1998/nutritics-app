@@ -1,0 +1,77 @@
+@page "/recipes"
+@rendermode InteractiveServer
+@using CafeKitchen.Application
+@using CafeKitchen.Application.Recipes
+@using CafeKitchen.Domain.Recipes
+@inject ListRecipes List
+@inject SaveRecipe Save
+
+<PageTitle>Recipes</PageTitle>
+
+<h1>Recipes</h1>
+
+<EditForm Model="draft" OnValidSubmit="AddAsync" FormName="add-recipe" class="row">
+    <label>Name <input @bind="draft.Name" /></label>
+    <label>Yield weight (g) <input type="number" step="any" @bind="draft.YieldWeightGrams" /></label>
+    <label>Portions <input type="number" @bind="draft.YieldPortions" /></label>
+    <label>Selling price <input type="number" step="any" @bind="draft.SellingPrice" /></label>
+    <button type="submit">Add recipe</button>
+</EditForm>
+@if (error is not null) { <p role="alert" class="error">@error</p> }
+
+@if (items is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <table>
+        <thead>
+        <tr><th>Recipe</th><th>Allergens</th><th>kcal / portion</th><th>Batch cost</th><th>Portion cost</th><th>Margin</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var s in items)
+        {
+            <tr>
+                <td>@s.Recipe.Name</td>
+                <td>
+                    @s.RollUp.Allergens
+                    @if (!s.RollUp.AllergensConfirmed) { <strong> (not confirmed)</strong> }
+                </td>
+                <td>
+                    @(s.RollUp.Nutrition.PerPortion.EnergyKcal?.ToString("0"))
+                    @if (!s.RollUp.Nutrition.IsComplete) { <em> (incomplete)</em> }
+                </td>
+                <td>@s.RollUp.BatchCost.ToString("C")</td>
+                <td>@s.RollUp.PortionCost.ToString("C")</td>
+                <td>@s.Recipe.MarginPercent(s.RollUp.PortionCost)?.ToString("0.#")%</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string? error;
+    private IReadOnlyList<RecipeSummary>? items;
+    private Recipe draft = new();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() => items = await List.ExecuteAsync();
+
+    private async Task AddAsync()
+    {
+        try
+        {
+            await Save.ExecuteAsync(draft);
+            draft = new();
+            error = null;
+            await LoadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            error = ex.Message;
+        }
+    }
+}

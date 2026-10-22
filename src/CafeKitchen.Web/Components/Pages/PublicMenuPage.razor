@@ -1,0 +1,96 @@
+@page "/menu"
+@layout PublicLayout
+@using CafeKitchen.Application.Menus
+@using CafeKitchen.Domain.Ingredients
+@inject GetPublicMenus GetMenus
+
+<PageTitle>Menu</PageTitle>
+
+<h1>Menu</h1>
+
+@* Static server rendering: ticked allergens travel in the query string, so no JavaScript is needed. *@
+<form method="get" action="menu">
+    <fieldset>
+        <legend>Allergy filter</legend>
+        @foreach (var a in AllAllergens)
+        {
+            <label class="check">
+                <input type="checkbox" name="allergen" value="@a" checked="@Ticked.Contains(a)" /> @Label(a)
+            </label>
+        }
+    </fieldset>
+    <button type="submit">Apply filter</button>
+    <p class="note">This filter lists allergens declared by our suppliers. It never means a dish is safe; please ask staff.</p>
+</form>
+
+@if (menus is null)
+{
+    <p>Loading…</p>
+}
+else if (menus.Count == 0)
+{
+    <p>No menu is available right now.</p>
+}
+else
+{
+    @foreach (var menu in menus)
+    {
+        <section>
+            <h2>@menu.Name</h2>
+            @foreach (var section in menu.Sections)
+            {
+                <h3>@section.Name</h3>
+                <ul class="dishes">
+                    @foreach (var d in section.Dishes)
+                    {
+                        <li>
+                            <strong>@d.Name</strong>@(d.IsSpecial ? " (special)" : "")
+                            @if (Ticked.Count > 0) { <span class="outcome">: @Describe(d.Outcome)</span> }
+                            <div>
+                                Allergens: @(d.RollUp.Allergens == Allergen.None ? "none declared" : d.RollUp.Allergens.ToString())@(d.RollUp.AllergensConfirmed ? "" : " (not confirmed)")
+                            </div>
+                            <div>
+                                Per portion: @(d.RollUp.Nutrition.PerPortion.EnergyKcal?.ToString("0") ?? "?") kcal@(d.RollUp.Nutrition.IsComplete ? "" : " (incomplete)")
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+}
+
+@code {
+    private static readonly Allergen[] AllAllergens =
+        Enum.GetValues<Allergen>().Where(a => a != Allergen.None).ToArray();
+
+    [SupplyParameterFromQuery(Name = "allergen")]
+    public string[]? Selected { get; set; }
+
+    private IReadOnlyList<PublicMenu>? menus;
+
+    private HashSet<Allergen> Ticked =>
+        (Selected ?? []).Select(s => Enum.TryParse<Allergen>(s, out var a) ? a : Allergen.None)
+            .Where(a => a != Allergen.None).ToHashSet();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var ticked = Ticked.Aggregate(Allergen.None, (acc, a) => acc | a);
+        menus = await GetMenus.ExecuteAsync(ticked);
+    }
+
+    private static string Label(Allergen a) => a switch
+    {
+        Allergen.CerealsContainingGluten => "Cereals containing gluten",
+        Allergen.SulphurDioxideAndSulphites => "Sulphur dioxide and sulphites",
+        Allergen.TreeNuts => "Tree nuts",
+        _ => a.ToString(),
+    };
+
+    private static string Describe(FilterOutcome o) => o switch
+    {
+        FilterOutcome.Contains => "contains a ticked allergen",
+        FilterOutcome.NotConfirmed => "not confirmed",
+        _ => "none declared",
+    };
+}

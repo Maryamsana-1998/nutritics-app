@@ -1,0 +1,44 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using CafeKitchen.Application.Attention
+@inject GetAttentionList GetAttention
+
+<PageTitle>Attention</PageTitle>
+
+<h1>Needs attention</h1>
+
+@if (list is null)
+{
+    <p>Loading…</p>
+}
+else if (list.NotConfirmed.Count + list.UsingDiscontinued.Count + list.HeldBack.Count == 0)
+{
+    <p>Nothing needs action.</p>
+}
+else
+{
+    <section>
+        <h2>Recipes not confirmed (@list.NotConfirmed.Count)</h2>
+        <ul>
+            @foreach (var r in list.NotConfirmed) { <li>@r.Name</li> }
+        </ul>
+    </section>
+    <section>
+        <h2>Recipes using discontinued ingredients (@list.UsingDiscontinued.Count)</h2>
+        <ul>
+            @foreach (var r in list.UsingDiscontinued) { <li>@r.Name</li> }
+        </ul>
+    </section>
+    <section>
+        <h2>Held-back import rows (@list.HeldBack.Count)</h2>
+        <ul>
+            @foreach (var h in list.HeldBack) { <li>@h.Ingredient?.Name: proposed allergens @h.ProposedAllergens</li> }
+        </ul>
+    </section>
+}
+
+@code {
+    private AttentionList? list;
+
+    protected override async Task OnInitializedAsync() => list = await GetAttention.ExecuteAsync();
+}

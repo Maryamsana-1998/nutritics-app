@@ -1,0 +1,43 @@
+@page "/menus"
+@rendermode InteractiveServer
+@using CafeKitchen.Application.Menus
+@using CafeKitchen.Domain.Menus
+@inject ListMenus List
+@inject SetMenuActive SetActive
+
+<PageTitle>Menus</PageTitle>
+
+<h1>Menus</h1>
+
+@if (menus is null)
+{
+    <p>Loading…</p>
+}
+else if (menus.Count == 0)
+{
+    <p>No menus yet.</p>
+}
+else
+{
+    <ul>
+        @foreach (var m in menus)
+        {
+            <li>
+                @m.Name — @(m.IsActive ? "active" : "inactive")
+                <button @onclick="() => ToggleAsync(m)">@(m.IsActive ? "Deactivate" : "Activate")</button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<Menu>? menus;
+
+    protected override async Task OnInitializedAsync() => menus = await List.ExecuteAsync();
+
+    private async Task ToggleAsync(Menu m)
+    {
+        await SetActive.ExecuteAsync(m.Id, !m.IsActive);
+        menus = await List.ExecuteAsync();
+    }
+}
